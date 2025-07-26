@@ -1,0 +1,15 @@
+setup.py
+src/alpaca/__init__.py
+src/alpaca/crypto.py
+src/alpaca/historical.py
+src/alpaca/main.py
+src/tradingView/__init__.py
+src/tradingView/alpaca_macd_analyzer.py
+src/tradingView/macd_test.py
+src/tradingView/queryEngine.py
+src/tradingView/trendIdentifier.py
+src/tradingview_analysis.egg-info/PKG-INFO
+src/tradingview_analysis.egg-info/SOURCES.txt
+src/tradingview_analysis.egg-info/dependency_links.txt
+src/tradingview_analysis.egg-info/requires.txt
+src/tradingview_analysis.egg-info/top_level.txt

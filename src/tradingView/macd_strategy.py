@@ -28,7 +28,7 @@ def plot_macd(data, ticker_symbol, buy_signal_dates=None, sell_signal_dates=None
     - Lesser Red (decreasing negative momentum)
 
     Args:
-        data (pd.DataFrame): DataFrame containing 'Close', 'MACD_12_26_9',
+        data (pd.DataFrame): DataFrame containing 'close', 'MACD_12_26_9',
                              'MACDs_12_26_9', and 'MACDh_12_26_9' columns.
         ticker_symbol (str): The stock ticker symbol.
         buy_signal_dates (list, optional): A list of date strings (YYYY-MM-DD) where buy signals were detected.
@@ -37,23 +37,23 @@ def plot_macd(data, ticker_symbol, buy_signal_dates=None, sell_signal_dates=None
                                            If provided, downward triangle markers will be added for each.
     """
     print(f"\n=== Plotting MACD for {ticker_symbol} ===")
-    print(f"Data index range: {data.index.min()} to {data.index.max()}")
+    # print(f"Data index range: {data.index.min()} to {data.index.max()}")
     print(f"Buy signal dates for plot: {buy_signal_dates}")
     print(f"Sell signal dates for plot: {sell_signal_dates}")
 
     # Ensure all necessary MACD columns exist
-    required_cols = ['Close', 'MACD_12_26_9', 'MACDs_12_26_9', 'MACDh_12_26_9']
-    missing_cols = [col for col in required_cols if col not in data.columns]
+    required_cols = ['close', 'MACD_12_26_9', 'MACDs_12_26_9', 'MACDh_12_26_9']
+    missing_cols = [col for col in required_cols if col not in data]
     if missing_cols:
         print(f"Error: Required columns {missing_cols} not found in data for {ticker_symbol}. Cannot plot.")
-        print(f"Available columns: {list(data.columns)}")
+        print(f"Available columns: {list(data)}")
         return
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True, gridspec_kw={'height_ratios': [3, 1]})
     fig.suptitle(f'MACD Analysis for {ticker_symbol}', fontsize=16)
 
     # Plotting Price
-    ax1.plot(data.index, data['Close'], label='Close Price', color='blue')
+    ax1.plot(data.index, data['close'], label='close Price', color='blue')
     ax1.set_ylabel('Price')
     ax1.legend()
     ax1.grid(True)
@@ -95,14 +95,27 @@ def plot_macd(data, ticker_symbol, buy_signal_dates=None, sell_signal_dates=None
         for buy_date_str in buy_signal_dates:
             try:
                 # Convert to pandas Timestamp and normalize to remove time component
-                signal_date_ts = pd.to_datetime(buy_date_str).normalize()
+                signal_date = pd.to_datetime(buy_date_str).normalize()
                 
-                # Ensure the date is in the index
-                if signal_date_ts in data.index:
-                    signal_data = data.loc[signal_date_ts]
+                # Find the closest matching date in the index (handles timezone issues)
+                if not data.index.empty:
+                    # Convert index to timezone-naive for comparison if it's timezone-aware
+                    if data.index.tz is not None:
+                        naive_index = data.index.tz_localize(None).normalize()
+                    else:
+                        naive_index = data.index.normalize()
+                        
+                    # Find the closest date in the index
+                    date_diffs = abs(naive_index - signal_date)
+                    closest_idx = date_diffs.argmin()
+                    
+                    # Only use if the date is within 1 day
+                    if date_diffs[closest_idx] <= pd.Timedelta(days=1):
+                        signal_date_ts = data.index[closest_idx]
+                        signal_data = data.loc[signal_date_ts]
                     
                     # Add marker to price chart (upper subplot)
-                    ax1.plot(signal_date_ts, signal_data['Close'],
+                    ax1.plot(signal_date_ts, signal_data['close'],
                             marker='^', markersize=15, color='lime', mec='black', mew=1.5,
                             label='Buy Signal' if buy_date_str == buy_signal_dates[0] else None, # Label only for the first marker
                             zorder=5, alpha=0.9)
@@ -130,14 +143,27 @@ def plot_macd(data, ticker_symbol, buy_signal_dates=None, sell_signal_dates=None
         for sell_date_str in sell_signal_dates:
             try:
                 # Convert to pandas Timestamp and normalize to remove time component
-                signal_date_ts = pd.to_datetime(sell_date_str).normalize()
+                signal_date = pd.to_datetime(sell_date_str).normalize()
                 
-                # Ensure the date is in the index
-                if signal_date_ts in data.index:
-                    signal_data = data.loc[signal_date_ts]
+                # Find the closest matching date in the index (handles timezone issues)
+                if not data.index.empty:
+                    # Convert index to timezone-naive for comparison if it's timezone-aware
+                    if data.index.tz is not None:
+                        naive_index = data.index.tz_localize(None).normalize()
+                    else:
+                        naive_index = data.index.normalize()
+                        
+                    # Find the closest date in the index
+                    date_diffs = abs(naive_index - signal_date)
+                    closest_idx = date_diffs.argmin()
+                    
+                    # Only use if the date is within 1 day
+                    if date_diffs[closest_idx] <= pd.Timedelta(days=1):
+                        signal_date_ts = data.index[closest_idx]
+                        signal_data = data.loc[signal_date_ts]
                     
                     # Add marker to price chart (upper subplot)
-                    ax1.plot(signal_date_ts, signal_data['Close'],
+                    ax1.plot(signal_date_ts, signal_data['close'],
                             marker='v', markersize=15, color='red', mec='black', mew=1.5,
                             label='Sell Signal' if sell_date_str == sell_signal_dates[0] else None, # Label only for the first marker
                             zorder=5, alpha=0.9)
@@ -164,23 +190,23 @@ def plot_macd(data, ticker_symbol, buy_signal_dates=None, sell_signal_dates=None
     plt.tight_layout(rect=[0, 0.03, 1, 0.95]) # Adjust layout to prevent title overlap
     
     # Create a directory for plots if it doesn't exist
-    plot_dir = "macd_charts"
+    plot_dir = "../data/yf/macd_charts"
     os.makedirs(plot_dir, exist_ok=True)
     
     filename = os.path.join(plot_dir, f'{ticker_symbol}_macd_chart_combined.png') # Changed filename
     plt.savefig(filename)
-    plt.close(fig) # Close the plot to free memory
+    plt.close(fig) # close the plot to free memory
     print(f"\nMACD chart saved to: {filename}")
 
 
 def _process_stock_data(ticker_symbol, period):
     """Helper function to fetch and process stock data for MACD calculation."""
     data = yf.download(ticker_symbol, period=period)
-
+    
     if data.empty:
         return None, f"No data found for {ticker_symbol} for the specified period."
 
-    # Flatten columns if MultiIndex (e.g., [('Close', 'AAPL'), ...])
+    # Flatten columns if MultiIndex (e.g., [('close', 'AAPL'), ...])
     if isinstance(data.columns, pd.MultiIndex):
         try:
             # Try to get the ticker-specific level first
@@ -194,10 +220,13 @@ def _process_stock_data(ticker_symbol, period):
             print(f"Warning: Could not process MultiIndex columns for {ticker_symbol} as expected: {e}. Attempting droplevel(0).")
             data.columns = data.columns.droplevel(0)
 
+    return data
 
-    # Ensure 'Close' column exists after potential multi-index flattening
-    if 'Close' not in data.columns:
-        return None, f"After processing, 'Close' column not found in data for {ticker_symbol}. Available: {list(data.columns)}"
+def _process_stock_data_for_macd(data, ticker_symbol:str):
+    # Ensure 'close' column exists after potential multi-index flattening
+    data = data.rename(columns=str.lower)
+    if 'close' not in data.columns:
+        return None, f"After processing, 'close' column not found in data for {ticker_symbol}. Available: {list(data.columns)}"
 
     if not TALIB_AVAILABLE:
         return None, "TA-Lib is not installed, cannot calculate MACD."
@@ -205,7 +234,7 @@ def _process_stock_data(ticker_symbol, period):
     # Calculate MACD directly using TA-Lib
     # TA-Lib returns numpy arrays, which will have NaNs at the beginning
     macd_line_talib, signal_line_talib, hist_talib = talib.MACD(
-        data['Close'].values,
+        data['close'].values,
         fastperiod=12,
         slowperiod=26,
         signalperiod=9
@@ -235,7 +264,7 @@ def _process_stock_data(ticker_symbol, period):
 
 def get_macd_lesser_red_buy_signals(data):
     """
-    Identifies buy signals based on 5 consecutive "lesser red" MACD histogram bars.
+    Identifies buy signals based on 6 consecutive "lesser red" MACD histogram bars.
     Does NOT plot.
 
     Args:
@@ -244,15 +273,20 @@ def get_macd_lesser_red_buy_signals(data):
     Returns:
         list: A list of date strings (YYYY-MM-DD) where buy signals were detected.
     """
-    print(f"Identifying BUY signals (Lesser Red)...")
+    print(f"Identifying BUY signals (6 consecutive Lesser Red)...")
     
     all_detected_signal_dates = [] 
     consecutive_lesser_red_count = 0
 
+    # Ensure we have the required column
+    if 'MACDh_12_26_9' not in data:
+        print("Error: 'MACDh_12_26_9' column not found in data")
+        return all_detected_signal_dates
+
     # Iterate backward from the most recent data point.
-    # Loop from len(data)-1 down to 4 (inclusive) to ensure i-4 is a valid index.
-    # This allows checking 5 consecutive bars ending at index 'i'.
-    for i in range(len(data) - 1, 4, -1):
+    # Loop from len(data)-1 down to 6 (inclusive) to ensure i-6 is a valid index.
+    # This allows checking 6 consecutive bars ending at index 'i'.
+    for i in range(len(data) - 1, 6, -1):
         current_hist = data['MACDh_12_26_9'].iloc[i]
         prev_hist = data['MACDh_12_26_9'].iloc[i-1]
         
@@ -265,9 +299,10 @@ def get_macd_lesser_red_buy_signals(data):
             consecutive_lesser_red_count = 0 # Reset streak if condition is broken
 
         # If 5 or more consecutive 'lesser red' bars are found
-        if consecutive_lesser_red_count >= 5:
+        if consecutive_lesser_red_count >= 6:
             # The pattern completes on the current date (data.index[i])
-            completion_date = data.index[i].strftime('%Y-%m-%d')
+            idx = data.index[i]
+            completion_date = idx.strftime('%Y-%m-%d') if hasattr(idx, 'strftime') else str(idx)
             
             # Add to list only if not already added (prevents duplicates if patterns overlap slightly)
             if completion_date not in all_detected_signal_dates:
@@ -283,7 +318,7 @@ def get_macd_lesser_red_buy_signals(data):
 
 def get_macd_lesser_green_sell_signals(data):
     """
-    Identifies sell signals based on 5 consecutive "lesser green" MACD histogram bars.
+    Identifies sell signals based on 4 consecutive "lesser green" MACD histogram bars.
     Does NOT plot.
 
     Args:
@@ -292,29 +327,34 @@ def get_macd_lesser_green_sell_signals(data):
     Returns:
         list: A list of date strings (YYYY-MM-DD) where sell signals were detected.
     """
-    print(f"Identifying SELL signals (Lesser Green)...")
-
+    print(f"Identifying SELL signals (4 consecutive Lesser Green)...")
+    
     all_detected_signal_dates = []
     consecutive_lesser_green_count = 0
 
-    # Iterate backward from the most recent data point.
-    # Loop from len(data)-1 down to 4 (inclusive) to ensure i-4 is a valid index.
-    for i in range(len(data) - 1, 4, -1):
-        current_histogram = data['MACDh_12_26_9'].iloc[i]
-        previous_histogram = data['MACDh_12_26_9'].iloc[i-1]
+    # Ensure we have the required column
+    if 'MACDh_12_26_9' not in data:
+        print("Error: 'MACDh_12_26_9' column not found in data")
+        return all_detected_signal_dates
 
+    # Iterate backward from the most recent data point.
+    for i in range(len(data) - 1, 4, -1):
+        current_hist = data['MACDh_12_26_9'].iloc[i]
+        prev_hist = data['MACDh_12_26_9'].iloc[i-1]
+        
         # Condition for "lesser green": positive and less positive than previous
-        is_lesser_green = (current_histogram > 0) and (current_histogram < previous_histogram)
+        is_lesser_green = (current_hist > 0) and (abs(current_hist) < abs(prev_hist))
         
         if is_lesser_green:
             consecutive_lesser_green_count += 1
         else:
-            consecutive_lesser_green_count = 0 # Reset streak if condition is broken
+            consecutive_lesser_green_count = 0
 
         # If 5 or more consecutive 'lesser green' bars are found
         if consecutive_lesser_green_count >= 4:
             # The pattern completes on the current date (data.index[i])
-            completion_date = data.index[i].strftime('%Y-%m-%d')
+            idx = data.index[i]
+            completion_date = idx.strftime('%Y-%m-%d') if hasattr(idx, 'strftime') else str(idx)
             
             # Add to list only if not already added
             if completion_date not in all_detected_signal_dates:
@@ -325,14 +365,17 @@ def get_macd_lesser_green_sell_signals(data):
             consecutive_lesser_green_count = 0
 
     all_detected_signal_dates.sort() # Sort dates chronologically
+
+    all_detected_signal_dates.sort() # Sort dates chronologically
     return all_detected_signal_dates
 
 # %%
 # --- Example Usage ---
 if __name__ == "__main__":
     # Define a list of tickers to analyze
-    tickers_to_analyze = ["AAPL", "MSFT", "NVDA", "SYM"]
-    period = "1y" # Use a longer period for more backtesting data
+    # tickers_to_analyze = ["AAPL", "MSFT", "NVDA", "SYM"]
+    tickers_to_analyze = ["NVDA"]
+    period = "2y" # Use a longer period for more backtesting data
 
     # Check if TA-Lib is available before proceeding with the main logic
     if not TALIB_AVAILABLE:
@@ -343,13 +386,14 @@ if __name__ == "__main__":
             print(f"Performing combined MACD signal analysis for {ticker} (period: {period})")
 
             # Fetch and process data once
-            data, error_message = _process_stock_data(ticker, period)
+            data_ = _process_stock_data(ticker, period)
+            data, error_message = _process_stock_data_for_macd(data=data_, ticker_symbol=ticker)
             if data is None:
                 print(f"❌ Error for {ticker}: {error_message}")
                 # Plot an empty chart if data fetching fails
-                plot_macd(pd.DataFrame(columns=['Close', 'MACD_12_26_9', 'MACDs_12_26_9', 'MACDh_12_26_9']), ticker)
+                plot_macd(pd.DataFrame(columns=['close', 'MACD_12_26_9', 'MACDs_12_26_9', 'MACDh_12_26_9']), ticker)
             else:
-                print(f"Data fetched for {ticker} from {data.index[0].strftime('%Y-%m-%d')} to {data.index[-1].strftime('%Y-%m-%d')}")
+                # print(f"Data fetched for {ticker} from {data.index[0].strftime('%Y-%m-%d')} to {data.index[-1].strftime('%Y-%m-%d')}")
 
                 # Get all buy signals
                 buy_signals = get_macd_lesser_red_buy_signals(data)
@@ -376,4 +420,3 @@ if __name__ == "__main__":
 
             print(f"\n{'='*80}\n")
 
-# %%

@@ -1,3 +1,9 @@
 .venv*
 *.env
 .gitconfig
+logs/
+output/
+data/
+*.png
+*.pyc
+__pycache__

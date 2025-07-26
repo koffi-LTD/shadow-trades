@@ -1,0 +1,6 @@
+alpaca-py
+pandas
+matplotlib
+python-dotenv
+numpy
+TA-Lib

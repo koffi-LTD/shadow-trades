@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: tradingview_analysis
+Version: 0.1
+Requires-Dist: alpaca-py
+Requires-Dist: pandas
+Requires-Dist: matplotlib
+Requires-Dist: python-dotenv
+Requires-Dist: numpy
+Requires-Dist: TA-Lib
+Dynamic: requires-dist
