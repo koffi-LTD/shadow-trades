@@ -17,10 +17,10 @@ except ImportError:
 
 
 # %%
-def plot_macd(data, ticker_symbol, buy_signal_dates=None, sell_signal_dates=None):
+def plot_macd(data, ticker_symbol, buy_signal_dates=None, sell_signal_dates=None, exit_signal_dates=None):
     """
     Generates and saves a MACD plot for the given stock data,
-    with optional markers for multiple buy and sell signal dates.
+    with optional markers for multiple buy, sell, and exit signal dates.
     The histogram will distinguish between four states:
     - Stronger Green (increasing positive momentum)
     - Lesser Green (decreasing positive momentum)
@@ -35,11 +35,14 @@ def plot_macd(data, ticker_symbol, buy_signal_dates=None, sell_signal_dates=None
                                           If provided, upward triangle markers will be added for each.
         sell_signal_dates (list, optional): A list of date strings (YYYY-MM-DD) where sell signals were detected.
                                            If provided, downward triangle markers will be added for each.
+        exit_signal_dates (list, optional): A list of date strings (YYYY-MM-DD) where exit signals were detected.
+                                           If provided, square markers will be added for each.
     """
     print(f"\n=== Plotting MACD for {ticker_symbol} ===")
     # print(f"Data index range: {data.index.min()} to {data.index.max()}")
     print(f"Buy signal dates for plot: {buy_signal_dates}")
     print(f"Sell signal dates for plot: {sell_signal_dates}")
+    print(f"Exit signal dates for plot: {exit_signal_dates}")
 
     # Ensure all necessary MACD columns exist
     required_cols = ['close', 'MACD_12_26_9', 'MACDs_12_26_9', 'MACDh_12_26_9']
@@ -48,6 +51,12 @@ def plot_macd(data, ticker_symbol, buy_signal_dates=None, sell_signal_dates=None
         print(f"Error: Required columns {missing_cols} not found in data for {ticker_symbol}. Cannot plot.")
         print(f"Available columns: {list(data)}")
         return
+
+
+    # Interpolate MACD columns for smoother plots (optional)
+    data['MACD_12_26_9'] = data['MACD_12_26_9'].interpolate(method='linear')
+    data['MACDs_12_26_9'] = data['MACDs_12_26_9'].interpolate(method='linear')
+    data['MACDh_12_26_9'] = data['MACDh_12_26_9'].interpolate(method='linear')
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True, gridspec_kw={'height_ratios': [3, 1]})
     fig.suptitle(f'MACD Analysis for {ticker_symbol}', fontsize=16)
@@ -72,12 +81,12 @@ def plot_macd(data, ticker_symbol, buy_signal_dates=None, sell_signal_dates=None
                 if current_val > previous_val:
                     histogram_colors.append('darkgreen') # Stronger Green
                 else:
-                    histogram_colors.append('lightgreen') # Lesser Green
+                    histogram_colors.append('green') # Lesser Green
             else: # Negative histogram
                 if abs(current_val) > abs(previous_val):
                     histogram_colors.append('darkred') # Stronger Red
                 else:
-                    histogram_colors.append('lightcoral') # Lesser Red (less negative)
+                    histogram_colors.append('red') # Lesser Red (less negative)
         else:
             # First bar, no previous to compare, default to standard green/red
             histogram_colors.append('darkgreen' if current_val >= 0 else 'darkred')
@@ -96,7 +105,7 @@ def plot_macd(data, ticker_symbol, buy_signal_dates=None, sell_signal_dates=None
             try:
                 # Convert to pandas Timestamp and normalize to remove time component
                 signal_date = pd.to_datetime(buy_date_str).normalize()
-                
+
                 # Find the closest matching date in the index (handles timezone issues)
                 if not data.index.empty:
                     # Convert index to timezone-naive for comparison if it's timezone-aware
@@ -104,35 +113,34 @@ def plot_macd(data, ticker_symbol, buy_signal_dates=None, sell_signal_dates=None
                         naive_index = data.index.tz_localize(None).normalize()
                     else:
                         naive_index = data.index.normalize()
-                        
+
                     # Find the closest date in the index
                     date_diffs = abs(naive_index - signal_date)
                     closest_idx = date_diffs.argmin()
-                    
+
                     # Only use if the date is within 1 day
                     if date_diffs[closest_idx] <= pd.Timedelta(days=1):
                         signal_date_ts = data.index[closest_idx]
                         signal_data = data.loc[signal_date_ts]
-                    
+
                     # Add marker to price chart (upper subplot)
                     ax1.plot(signal_date_ts, signal_data['close'],
-                            marker='^', markersize=15, color='lime', mec='black', mew=1.5,
+                            marker='^', markersize=8, color='lime', mec='black', mew=1.5,
                             label='Buy Signal' if buy_date_str == buy_signal_dates[0] else None, # Label only for the first marker
                             zorder=5, alpha=0.9)
-                    
+
                     # Add marker to MACD chart (lower subplot)
                     ax2.plot(signal_date_ts, signal_data['MACDh_12_26_9'],
-                            marker='^', markersize=15, color='lime', mec='black', mew=1.5,
+                            marker='^', markersize=8, color='lime', mec='black', mew=1.5,
                             zorder=5, alpha=0.9)
-                    
+
                     # Add vertical line for better visibility
                     ax1.axvline(x=signal_date_ts, color='lime', linestyle='--', alpha=0.5, linewidth=1)
                     ax2.axvline(x=signal_date_ts, color='lime', linestyle='--', alpha=0.5, linewidth=1)
-                    
+
                     print(f"✅ Buy signal marked on plot at {buy_date_str}")
                 else:
                     print(f"❌ Warning: Buy signal date {buy_date_str} not found in data index for plotting.")
-                    
             except Exception as e:
                 print(f"❌ Error marking buy signal on plot for {buy_date_str}: {e}")
                 import traceback
@@ -144,7 +152,7 @@ def plot_macd(data, ticker_symbol, buy_signal_dates=None, sell_signal_dates=None
             try:
                 # Convert to pandas Timestamp and normalize to remove time component
                 signal_date = pd.to_datetime(sell_date_str).normalize()
-                
+
                 # Find the closest matching date in the index (handles timezone issues)
                 if not data.index.empty:
                     # Convert index to timezone-naive for comparison if it's timezone-aware
@@ -152,25 +160,24 @@ def plot_macd(data, ticker_symbol, buy_signal_dates=None, sell_signal_dates=None
                         naive_index = data.index.tz_localize(None).normalize()
                     else:
                         naive_index = data.index.normalize()
-                        
+
                     # Find the closest date in the index
                     date_diffs = abs(naive_index - signal_date)
                     closest_idx = date_diffs.argmin()
-                    
                     # Only use if the date is within 1 day
                     if date_diffs[closest_idx] <= pd.Timedelta(days=1):
                         signal_date_ts = data.index[closest_idx]
                         signal_data = data.loc[signal_date_ts]
-                    
+
                     # Add marker to price chart (upper subplot)
                     ax1.plot(signal_date_ts, signal_data['close'],
-                            marker='v', markersize=15, color='red', mec='black', mew=1.5,
+                            marker='v', markersize=8, color='red', mec='black', mew=1.5,
                             label='Sell Signal' if sell_date_str == sell_signal_dates[0] else None, # Label only for the first marker
                             zorder=5, alpha=0.9)
-                    
+
                     # Add marker to MACD chart (lower subplot)
                     ax2.plot(signal_date_ts, signal_data['MACDh_12_26_9'],
-                            marker='v', markersize=15, color='red', mec='black', mew=1.5,
+                            marker='v', markersize=8, color='red', mec='black', mew=1.5,
                             zorder=5, alpha=0.9)
                     
                     # Add vertical line for better visibility
@@ -186,13 +193,59 @@ def plot_macd(data, ticker_symbol, buy_signal_dates=None, sell_signal_dates=None
                 import traceback
                 traceback.print_exc()
 
+    # Add exit signal markers if provided
+    if exit_signal_dates:
+        for exit_date_str in exit_signal_dates:
+            try:
+                # Convert to pandas Timestamp and normalize to remove time component
+                signal_date = pd.to_datetime(exit_date_str).normalize()
+
+                # Find the closest matching date in the index (handles timezone issues)
+                if not data.index.empty:
+                    # Convert index to timezone-naive for comparison if it's timezone-aware
+                    if data.index.tz is not None:
+                        naive_index = data.index.tz_localize(None).normalize()
+                    else:
+                        naive_index = data.index.normalize()
+
+                    # Find the closest date in the index
+                    date_diffs = abs(naive_index - signal_date)
+                    closest_idx = date_diffs.argmin()
+
+                    # Only use if the date is within 1 day
+                    if date_diffs[closest_idx] <= pd.Timedelta(days=1):
+                        signal_date_ts = data.index[closest_idx]
+                        signal_data = data.loc[signal_date_ts]
+
+                        # Add marker to price chart (upper subplot)
+                        ax1.plot(signal_date_ts, signal_data['close'],
+                                marker='s', markersize=8, color='black', mec='white', mew=1.5,
+                                label='Exit Signal' if exit_date_str == exit_signal_dates[0] else None,
+                                zorder=5, alpha=0.9)
+
+                        # Add marker to MACD chart (lower subplot)
+                        ax2.plot(signal_date_ts, signal_data['MACDh_12_26_9'],
+                                marker='s', markersize=8, color='black', mec='white', mew=1.5,
+                                zorder=5, alpha=0.9)
+
+                        # Add vertical line for better visibility
+                        ax1.axvline(x=signal_date_ts, color='black', linestyle='--', alpha=0.5, linewidth=1)
+                        ax2.axvline(x=signal_date_ts, color='black', linestyle='--', alpha=0.5, linewidth=1)
+
+                        print(f"✅ Exit signal marked on plot at {exit_date_str}")
+                else:
+                    print(f"❌ Warning: Exit signal date {exit_date_str} not found in data index for plotting.")
+            except Exception as e:
+                print(f"❌ Error marking exit signal on plot for {exit_date_str}: {e}")
+                import traceback
+                traceback.print_exc()
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95]) # Adjust layout to prevent title overlap
-    
+
     # Create a directory for plots if it doesn't exist
     plot_dir = "../data/yf/macd_charts"
     os.makedirs(plot_dir, exist_ok=True)
-    
+
     filename = os.path.join(plot_dir, f'{ticker_symbol}_macd_chart_combined.png') # Changed filename
     plt.savefig(filename)
     plt.close(fig) # close the plot to free memory
@@ -202,7 +255,7 @@ def plot_macd(data, ticker_symbol, buy_signal_dates=None, sell_signal_dates=None
 def _process_stock_data(ticker_symbol, period):
     """Helper function to fetch and process stock data for MACD calculation."""
     data = yf.download(ticker_symbol, period=period)
-    
+
     if data.empty:
         return None, f"No data found for {ticker_symbol} for the specified period."
 
@@ -228,6 +281,9 @@ def _process_stock_data_for_macd(data, ticker_symbol:str):
     if 'close' not in data.columns:
         return None, f"After processing, 'close' column not found in data for {ticker_symbol}. Available: {list(data.columns)}"
 
+    # Backfill missing 'close' values
+    data['close'] = data['close'].ffill().bfill()
+
     if not TALIB_AVAILABLE:
         return None, "TA-Lib is not installed, cannot calculate MACD."
 
@@ -241,10 +297,15 @@ def _process_stock_data_for_macd(data, ticker_symbol:str):
     )
 
     # Convert numpy arrays to pandas Series with the correct index
-    # Fill initial NaNs with 0 to ensure no gaps in plotting
-    macd_series = pd.Series(macd_line_talib, index=data.index).fillna(0)
-    signal_series = pd.Series(signal_line_talib, index=data.index).fillna(0)
-    histogram_series = pd.Series(hist_talib, index=data.index).fillna(0)
+    macd_series = pd.Series(macd_line_talib, index=data.index)
+    signal_series = pd.Series(signal_line_talib, index=data.index)
+    histogram_series = pd.Series(hist_talib, index=data.index)
+
+    #  fill NaN with nearest valid values
+    macd_series = macd_series.bfill().ffill()
+    signal_series = signal_series.bfill().ffill()
+    histogram_series = histogram_series.bfill().ffill()
+    print(histogram_series)
 
     # Assign the correct column names
     data['MACD_12_26_9'] = macd_series
@@ -256,69 +317,77 @@ def _process_stock_data_for_macd(data, ticker_symbol:str):
         return None, f"Could not calculate MACD for {ticker_symbol}. 'MACDh_12_26_9' is all NaN after TA-Lib calculation."
 
     # Need at least 5 data points to check for 5 consecutive bars
-    if len(data) < 5:
+    if len(data) < 6:
         return None, f"Not enough valid data points ({len(data)}) after MACD calculation to check for 5 consecutive bars."
-
+    # data.to_csv(f'../data/{ticker_symbol}_macd_data.csv', index=True, sep=',')
     return data, None
 
 
 def get_macd_lesser_red_buy_signals(data):
     """
-    Identifies buy signals based on 6 consecutive "lesser red" MACD histogram bars.
+    Identifies buy signals based on consecutive "lesser red" MACD histogram bars.
     Does NOT plot.
-
+    
     Args:
         data (pd.DataFrame): DataFrame containing 'MACDh_12_26_9' column.
-
+        
     Returns:
         list: A list of date strings (YYYY-MM-DD) where buy signals were detected.
     """
     print(f"Identifying BUY signals (6 consecutive Lesser Red)...")
     
     all_detected_signal_dates = [] 
-    consecutive_lesser_red_count = 0
+    pattern_bars = []  # Store the bars that form the pattern
 
     # Ensure we have the required column
     if 'MACDh_12_26_9' not in data:
         print("Error: 'MACDh_12_26_9' column not found in data")
         return all_detected_signal_dates
 
-    # Iterate backward from the most recent data point.
-    # Loop from len(data)-1 down to 6 (inclusive) to ensure i-6 is a valid index.
-    # This allows checking 6 consecutive bars ending at index 'i'.
-    for i in range(len(data) - 1, 6, -1):
+    # Iterate through the data
+    for i in range(len(data) - 1):
         current_hist = data['MACDh_12_26_9'].iloc[i]
-        prev_hist = data['MACDh_12_26_9'].iloc[i-1]
+        prev_hist = data['MACDh_12_26_9'].iloc[i-1] if i > 0 else None
         
         # Condition for "lesser red": negative and less negative than previous
-        is_lesser_red = (current_hist < 0) and (abs(current_hist) < abs(prev_hist))
-        
-        if is_lesser_red:
-            consecutive_lesser_red_count += 1
-        else:
-            consecutive_lesser_red_count = 0 # Reset streak if condition is broken
-
-        # If 5 or more consecutive 'lesser red' bars are found
-        if consecutive_lesser_red_count >= 6:
-            # The pattern completes on the current date (data.index[i])
-            idx = data.index[i]
-            completion_date = idx.strftime('%Y-%m-%d') if hasattr(idx, 'strftime') else str(idx)
+        if current_hist is not None and prev_hist is not None:
+            is_lesser_red = (current_hist < 0) and (abs(current_hist) < abs(prev_hist))
             
-            # Add to list only if not already added (prevents duplicates if patterns overlap slightly)
-            if completion_date not in all_detected_signal_dates:
-                all_detected_signal_dates.append(completion_date)
-                print(f"🎯 BUY SIGNAL DETECTED, pattern completed on: {completion_date}")
-            
-            # Reset count to find subsequent, distinct 5-bar patterns
-            consecutive_lesser_red_count = 0 
+            if is_lesser_red:
+                pattern_bars.append(i)
+                
+                # Check if we have enough consecutive bars
+                if len(pattern_bars) >= 6:
+                    # Verify the bars are truly consecutive
+                    is_consecutive = all(pattern_bars[j+1] - pattern_bars[j] == 1 
+                                      for j in range(len(pattern_bars)-1))
+                    
+                    if is_consecutive:
+                        start_idx = pattern_bars[0]
+                        end_idx = pattern_bars[-1]
+                        
+                        start_date = data.index[start_idx].strftime('%Y-%m-%d %H:%M:%S') if hasattr(data.index[start_idx], 'strftime') else str(data.index[start_idx])
+                        completion_date = data.index[end_idx].strftime('%Y-%m-%d %H:%M:%S') if hasattr(data.index[end_idx], 'strftime') else str(data.index[end_idx])
+                        
+                        if completion_date not in all_detected_signal_dates:
+                            all_detected_signal_dates.append(completion_date)
+                            print(f"🎯 BUY SIGNAL DETECTED, pattern started on: {start_date} completed on: {completion_date}")
+                        
+                        pattern_bars = []  # Reset for next pattern
+            else:
+                pattern_bars = []  # Reset on non-lesser-red bar
 
-    all_detected_signal_dates.sort() # Sort dates chronologically
+    all_detected_signal_dates.sort()
     return all_detected_signal_dates
 
 
 def get_macd_lesser_green_sell_signals(data):
     """
-    Identifies sell signals based on 4 consecutive "lesser green" MACD histogram bars.
+    Identifies sell signals based on 5 consecutive "lesser green" MACD histogram bars.
+    More stringent criteria to reduce false positives:
+    - Requires 5 consecutive lesser green bars
+    - Each bar must be at least 20% smaller than the previous
+    - The pattern must not be in a strong uptrend
     Does NOT plot.
 
     Args:
@@ -327,46 +396,154 @@ def get_macd_lesser_green_sell_signals(data):
     Returns:
         list: A list of date strings (YYYY-MM-DD) where sell signals were detected.
     """
-    print(f"Identifying SELL signals (4 consecutive Lesser Green)...")
+    print(f"Identifying SELL signals (5 consecutive Lesser Green with strict criteria)...")
     
     all_detected_signal_dates = []
-    consecutive_lesser_green_count = 0
+    pattern_bars = []  # Store the bars that form the pattern
 
     # Ensure we have the required column
     if 'MACDh_12_26_9' not in data:
         print("Error: 'MACDh_12_26_9' column not found in data")
         return all_detected_signal_dates
 
-    # Iterate backward from the most recent data point.
-    for i in range(len(data) - 1, 4, -1):
+    # Define minimum decrease threshold (20%)
+    MIN_DECREASE_PCT = 0.20
+
+    # Iterate through the data
+    for i in range(len(data) - 1):
         current_hist = data['MACDh_12_26_9'].iloc[i]
-        prev_hist = data['MACDh_12_26_9'].iloc[i-1]
+        prev_hist = data['MACDh_12_26_9'].iloc[i-1] if i > 0 else None
         
-        # Condition for "lesser green": positive and less positive than previous
-        is_lesser_green = (current_hist > 0) and (abs(current_hist) < abs(prev_hist))
+        # Skip if we don't have previous data for comparison
+        if current_hist is None or prev_hist is None:
+            continue
+            
+        # Conditions for a valid "lesser green" bar:
+        # 1. Current bar must be positive
+        # 2. Must be decreasing from previous bar
+        # 3. Must decrease by at least MIN_DECREASE_PCT
+        is_lesser_green = (
+            current_hist > 0 and 
+            prev_hist > 0 and
+            current_hist < prev_hist and
+            (prev_hist - current_hist) / prev_hist >= MIN_DECREASE_PCT
+        )
         
         if is_lesser_green:
-            consecutive_lesser_green_count += 1
+            pattern_bars.append(i)
+            
+            # Check if we have enough consecutive bars
+            if len(pattern_bars) >= 5:
+                # Verify the bars are truly consecutive
+                is_consecutive = all(pattern_bars[j+1] - pattern_bars[j] == 1 
+                                  for j in range(len(pattern_bars)-1))
+                
+                if is_consecutive:
+                    # Additional check: Ensure we're not in a strong uptrend
+                    # Look at the MACD line trend over the past 10 periods
+                    start_idx = max(0, pattern_bars[0] - 10)
+                    macd_trend = data['MACD_12_26_9'].iloc[start_idx:pattern_bars[-1]].mean()
+                    
+                    # Only generate sell signal if MACD trend is not strongly positive
+                    if macd_trend <= data['MACD_12_26_9'].iloc[pattern_bars[-1]]:
+                        completion_date = data.index[pattern_bars[-1]]
+                        date_str = completion_date.strftime('%Y-%m-%d') if hasattr(completion_date, 'strftime') else str(completion_date)
+                        
+                        if date_str not in all_detected_signal_dates:
+                            all_detected_signal_dates.append(date_str)
+                            print(f"🎯 SELL SIGNAL DETECTED at {date_str}")
+                            print(f"   - Pattern strength: {(prev_hist - current_hist) / prev_hist:.2%} decrease")
+                            print(f"   - MACD trend: {macd_trend:.6f}")
+                    
+                pattern_bars = []  # Reset for next pattern
         else:
-            consecutive_lesser_green_count = 0
+            pattern_bars = []  # Reset on non-lesser-green bar
 
-        # If 5 or more consecutive 'lesser green' bars are found
-        if consecutive_lesser_green_count >= 4:
-            # The pattern completes on the current date (data.index[i])
-            idx = data.index[i]
-            completion_date = idx.strftime('%Y-%m-%d') if hasattr(idx, 'strftime') else str(idx)
+    all_detected_signal_dates.sort()  # Sort dates chronologically
+    return all_detected_signal_dates
+
+
+def get_consecutive_red_candles_exit(data, buy_signal_dates, consecutive_bars=3):
+    """
+    Identifies exit points based on consecutive red candles with decreasing closing prices.
+    Only looks for exit points after a buy signal has occurred.
+    
+    Args:
+        data (pd.DataFrame): DataFrame containing 'open' and 'close' columns
+        buy_signal_dates (list): List of buy signal dates to check against
+        consecutive_bars (int): Number of consecutive red candles required (default 3)
+        
+    Returns:
+        list: A list of date strings (YYYY-MM-DD) where exit signals were detected
+    """
+    print(f"Identifying EXIT points ({consecutive_bars} consecutive red candles) after buy signals...")
+    
+    if not buy_signal_dates:
+        print("No buy signals provided, skipping exit signal detection.")
+        return []
+
+    all_detected_signal_dates = []
+    pattern_bars = []  # Store the bars that form the pattern
+    
+    # Convert buy signal dates to datetime for comparison
+    buy_dates = [pd.to_datetime(date).normalize() for date in buy_signal_dates]
+    earliest_buy_date = min(buy_dates)
+
+    # Iterate through the data
+    for i in range(len(data) - 1):
+        current_date = data.index[i].normalize()
+        
+        # Skip dates before the first buy signal
+        if current_date < earliest_buy_date:
+            continue
             
-            # Add to list only if not already added
-            if completion_date not in all_detected_signal_dates:
-                all_detected_signal_dates.append(completion_date)
-                print(f"🎯 SELL SIGNAL DETECTED, pattern completed on: {completion_date}")
+        # Check if we're after the most recent applicable buy signal
+        # Find the most recent buy date before current date
+        applicable_buys = [date for date in buy_dates if date <= current_date]
+        if not applicable_buys:
+            continue
             
-            # Reset count to find subsequent, distinct 5-bar patterns
-            consecutive_lesser_green_count = 0
+        current_open = data['open'].iloc[i]
+        current_close = data['close'].iloc[i]
+        
+        # Check if it's a red candle (close < open)
+        is_red_candle = current_close < current_open
+        
+        if is_red_candle:
+            # If this is the first red candle or continuing the pattern
+            if not pattern_bars or (
+                i > 0 and 
+                current_close < data['close'].iloc[i-1]  # Decreasing closing price
+            ):
+                pattern_bars.append(i)
+                
+                # Check if we have enough consecutive bars
+                if len(pattern_bars) >= consecutive_bars:
+                    # Verify the bars are truly consecutive and closing prices are decreasing
+                    is_consecutive = all(
+                        pattern_bars[j+1] - pattern_bars[j] == 1 and
+                        data['close'].iloc[pattern_bars[j+1]] < data['close'].iloc[pattern_bars[j]]
+                        for j in range(len(pattern_bars)-1)
+                    )
+                    
+                    if is_consecutive:
+                        completion_date = data.index[pattern_bars[-1]]
+                        date_str = completion_date.strftime('%Y-%m-%d') if hasattr(completion_date, 'strftime') else str(completion_date)
+                        
+                        if date_str not in all_detected_signal_dates:
+                            price_change = (data['close'].iloc[pattern_bars[-1]] - data['close'].iloc[pattern_bars[0]]) / data['close'].iloc[pattern_bars[0]] * 100
+                            all_detected_signal_dates.append(date_str)
+                            print(f"🎯 EXIT SIGNAL DETECTED at {date_str}")
+                            print(f"   - Price decline: {price_change:.2f}%")
+                            print(f"   - Following buy signal from: {max(applicable_buys).strftime('%Y-%m-%d')}")
+                    
+                    pattern_bars = []  # Reset for next pattern
+            else:
+                pattern_bars = [i]  # Start new pattern
+        else:
+            pattern_bars = []  # Reset on non-red candle
 
-    all_detected_signal_dates.sort() # Sort dates chronologically
-
-    all_detected_signal_dates.sort() # Sort dates chronologically
+    all_detected_signal_dates.sort()
     return all_detected_signal_dates
 
 # %%
@@ -387,7 +564,12 @@ if __name__ == "__main__":
 
             # Fetch and process data once
             data_ = _process_stock_data(ticker, period)
-            data, error_message = _process_stock_data_for_macd(data=data_, ticker_symbol=ticker)
+            processed_result = _process_stock_data_for_macd(data=data_, ticker_symbol=ticker)
+            if processed_result is None:
+                print(f"❌ Error for {ticker}: Could not process MACD data.")
+                continue
+
+            data, error_message = processed_result
             if data is None:
                 print(f"❌ Error for {ticker}: {error_message}")
                 # Plot an empty chart if data fetching fails
@@ -409,13 +591,20 @@ if __name__ == "__main__":
                 else:
                     print(f"\nNo SELL signals found for {ticker}.")
 
+                # Get all exit signals
+                exit_signals = get_consecutive_red_candles_exit(data, buy_signals)
+                if exit_signals:
+                    print(f"\nFound EXIT signals for {ticker}: {', '.join(exit_signals)}")
+                else:
+                    print(f"\nNo EXIT signals found for {ticker}.")
+
                 # Plot all signals on a single chart
-                if buy_signals or sell_signals:
+                if buy_signals or sell_signals or exit_signals:
                     print(f"\nGenerating combined MACD chart for {ticker} with all detected signals...")
-                    plot_macd(data, ticker, buy_signal_dates=buy_signals, sell_signal_dates=sell_signals)
+                    plot_macd(data, ticker, buy_signal_dates=buy_signals, sell_signal_dates=sell_signals, exit_signal_dates=exit_signals)
                     print(f"\nCombined chart for {ticker} saved successfully.")
                 else:
-                    print(f"\nNo buy or sell signals found for {ticker} to plot.")
+                    print(f"\nNo buy, sell, or exit signals found for {ticker} to plot.")
                     plot_macd(data, ticker) # Plot without signals if none found
 
             print(f"\n{'='*80}\n")

@@ -21,4 +21,8 @@ finta
 pip
 jupyter
 TA-Lib
+lightweight_charts
+dotenv
+streamlit
+streamlit-lightweight-charts
 

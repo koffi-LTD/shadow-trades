@@ -192,8 +192,7 @@ def plot_macd_hourly(data: pd.DataFrame, ticker_symbol: str, buy_signal_dates=No
     plt.savefig(fname); plt.close(fig)
     print(f"Chart saved to {fname}")
 
-# %%
-# --- Example Usage for Hourly Analysis ---
+
 if __name__ == "__main__":
     # Define a list of tickers to analyze
     tickers_to_analyze = ["PLTR"]
@@ -216,7 +215,7 @@ if __name__ == "__main__":
             # filter symbol column to current ticker if present
             if 'symbol' in df_csv.columns:
                 df_csv = df_csv[df_csv['symbol'] == ticker]
-            # ensure timestamp is datetime and set as index
+            
             if 'timestamp' in df_csv.columns:
                 df_csv['timestamp'] = pd.to_datetime(df_csv['timestamp'])
                 df_csv = df_csv.set_index('timestamp').sort_index()
@@ -225,7 +224,7 @@ if __name__ == "__main__":
             
             if data is None:
                 print(f"❌ Error for {ticker}: {error_message}")
-                # Plot an empty chart if data fetching fails
+                # Plot fails
                 plot_macd_hourly(pd.DataFrame(columns=['close', 'MACD_12_26_9', 'MACDs_12_26_9', 'MACDh_12_26_9']), ticker)
             else:
                 # Print the date range of the data
